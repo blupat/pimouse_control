@@ -1,0 +1,7 @@
+bool on
+bool run
+bool face
+float64 forward
+float64 rotation
+---
+bool isOk

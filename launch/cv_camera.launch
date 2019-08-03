@@ -1,0 +1,4 @@
+<launch>
+	<node pkg="cv_camera" name="cv_camera" type="cv_camera_node" />
+	<rosparam command="load" file="$(find pimouse_control)/cv_camera.yaml" />
+</launch>

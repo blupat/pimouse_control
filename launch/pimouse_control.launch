@@ -1,0 +1,13 @@
+<launch>
+	<include file="$(find pimouse_ros)/launch/pimouse.launch" />
+
+	<include file="$(find pimouse_control)/launch/cv_camera.launch" />
+	
+	<node pkg="web_video_server" name="web_video_server" type="web_video_server">
+		<param name="port" value="10000" />
+	</node>
+
+	<node pkg="pimouse_control" name="pimouse_control_node" type="pimouse_control_node.py" output="screen" /> -->
+	<rosparam command="load" file="$(find pimouse_control)/vision_control.yaml" />
+	<rosparam command="load" file="$(find pimouse_control)/run_corridor.yaml" />
+</launch>
