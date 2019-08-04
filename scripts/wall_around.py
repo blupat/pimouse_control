@@ -128,6 +128,16 @@ class WallAround():
 
         self.__pubRunData.publish(runData)
 
+    def SetVelocity(self, linear, angular):
+        data = Twist()
+        ls = self.__sensorValues
+        if self.WallFront(ls) and (linear > 0.0):
+            data.linear.x = 0.0
+        else:
+            data.linear.x = linear
+        data.angular.z = angular
+        self.__cmdVel.publish(data)
+
 if __name__ == '__main__':
     rospy.init_node('wall_around')
     rospy.wait_for_service('/motor_on')
