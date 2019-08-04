@@ -13,7 +13,7 @@ from pimouse_control.srv import PiMouseCmd, PiMouseCmdRequest, PiMouseCmdRespons
 class PiMouseControl(object):
     __slots__ = ('__srvCmd', '__srvClientOn', '__srvClientOff', '__wallAround', \
                  '__wallTrace', '__faceToFace', '__faceDetection', '__isOn', '__isRun', \
-                 '__on', '__run', '__face', '__forward', '__rotation', '__wallThreshold')
+                 '__on', '__run', '__face', '__forward', '__rotation')
 
     def __init__(self):
         self.__isOn = False
@@ -27,7 +27,6 @@ class PiMouseControl(object):
         self.__srvClientOn = rospy.ServiceProxy('motor_on', Trigger)
         self.__srvClientOff = rospy.ServiceProxy('motor_off', Trigger)
         rospy.on_shutdown(self.__srvClientOff.call)
-        self.__wallThreshold = rospy.get_param("/run_corridor/wall_threshold", 20)
         self.__wallAround = WallAround()
         self.__wallTrace = WallTrace()
         self.__faceToFace = FaceToFace()
