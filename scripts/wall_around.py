@@ -9,7 +9,7 @@ class WallAround():
     __slots__ = ('__cmdVel', '__accel', '__maxSpeed', '__minSpeed', '__servoTarget', '__servoKp', '__servoKd', \
                  '__sensorOffThreshold', '__wallGain', '__wallThreshold', '__linearSpeed', '__sensorValues', \
                  '__linearSpeed', '__angularSpeed', '__previousError', '__previousTime', '__startTime', \
-                 '__x', '__y', '__th', '__pubRunData')
+                 '__x', '__y', '__th', '__pubRunData', '__isServoOn')
 
     def __init__(self):
         self.__cmdVel = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
@@ -53,6 +53,7 @@ class WallAround():
         self.__x = 0.0
         self.__y = 0.0
         self.__th = 0.0
+        self.__isServoOn = False
 
     def Run(self):
         data = Twist()
@@ -69,29 +70,36 @@ class WallAround():
                 self.__angularSpeed = math.pi * self.__wallGain
             else:
                 self.__angularSpeed = - math.pi * self.__wallGain
+            self.__isServoOn = False
         elif self.TooRight(ls):
             self.__linearSpeed -= self.__decel
             self.__angularSpeed = math.pi * self.__wallGain
+            self.__isServoOn = False
         elif self.TooLeft(ls):
             self.__linearSpeed -= self.__decel
             self.__angularSpeed = - math.pi * self.__wallGain
+            self.__isServoOn = False
         else:
             if ls.sum_forward > self.__forwardThreshold:
                 self.__linearSpeed -= self.__decel
+                if self.__linearSpeed < self.__minSpeed:
+                    self.__linearSpeed = self.__minSpeed
             else:
                 self.__linearSpeed += self.__accel
             if ls.left_side < self.__servoOffThreshold:
                 self.__angularSpeed = 0.0
+                self.__isServoOn = False
             else:
                 error = self.__servoTarget - ls.left_side
                 self.__angularSpeed = error * self.__servoKp * math.pi / 180.0
-                deltaError = error - self.__previousError
-                if deltaTime > 0.0000001:
+                if self.__isServoOn:
+                    deltaError = error - self.__previousError
                     self.__angularSpeed += deltaError / deltaTime * self.__servoKd * math.pi / 180.0
+                self.__isServoOn = True
 
-        if self.__linearSpeed <= self.__minSpeed:
-            self.__linearSpeed = self.__minSpeed
-        elif self.__linearSpeed >= self.__maxSpeed:
+        if self.__linearSpeed < 0.0:
+            self.__linearSpeed = 0.0
+        elif self.__linearSpeed > self.__maxSpeed:
             self.__linearSpeed = self.__maxSpeed
 
         data.linear.x = self.__linearSpeed
