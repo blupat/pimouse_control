@@ -16,6 +16,7 @@ class WallAround():
         self.__pubRunData = rospy.Publisher('/run_data', RunData, queue_size=1)
         
         self.__accel = rospy.get_param("/run_corridor/acceleration", 0.01)
+        self.__decel = rospy.get_param("/run_corridor/deceleration", 0.05)
         self.__maxSpeed = rospy.get_param("/run_corridor/max_speed", 0.3)
         self.__minSpeed = rospy.get_param("/run_corridor/min_speed", 0.0)
         self.__servoTarget = rospy.get_param("/run_corridor/servo_target", 40)
@@ -69,14 +70,14 @@ class WallAround():
             else:
                 self.__angularSpeed = - math.pi * self.__wallGain
         elif self.TooRight(ls):
-            self.__linearSpeed -= self.__accel
+            self.__linearSpeed -= self.__decel
             self.__angularSpeed = math.pi * self.__wallGain
         elif self.TooLeft(ls):
-            self.__linearSpeed -= self.__accel
+            self.__linearSpeed -= self.__decel
             self.__angularSpeed = - math.pi * self.__wallGain
         else:
             if ls.sum_forward > self.__forwardThreshold:
-                self.__linearSpeed -= self.__accel
+                self.__linearSpeed -= self.__decel
             else:
                 self.__linearSpeed += self.__accel
             if ls.left_side < self.__servoOffThreshold:
