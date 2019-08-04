@@ -1,5 +1,6 @@
 <launch>
 	<include file="$(find pimouse_ros)/launch/pimouse.launch" />
+	<param name="lightsensors_freq" value="15" />
 
 	<include file="$(find pimouse_control)/launch/cv_camera.launch" />
 	
