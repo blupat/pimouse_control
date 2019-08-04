@@ -95,8 +95,8 @@ class PiMouseControl(object):
                         self.__srvClientOff.call()
                         self.__isOn = False
                         self.__isRun = False
-            except:
-                pass
+            except Exception as e:
+                print(e)
             rate.sleep()
 
 if __name__ == '__main__':
