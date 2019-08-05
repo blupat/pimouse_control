@@ -7,9 +7,9 @@ from pimouse_control.msg import RunData
 
 class WallAround():
     __slots__ = ('__cmdVel', '__accel', '__maxSpeed', '__minSpeed', '__servoTarget', '__servoKp', '__servoKd', \
-                 '__sensorOffThreshold', '__wallGain', '__wallThreshold', '__linearSpeed', '__sensorValues', \
-                 '__linearSpeed', '__angularSpeed', '__previousError', '__previousTime', '__startTime', \
-                 '__x', '__y', '__th', '__pubRunData', '__isServoOn')
+                 '__sensorOffThreshold', '__wallGain', '__rightGain', '__wallThreshold', '__linearSpeed', \
+                 '__sensorValues', '__linearSpeed', '__angularSpeed', '__previousError', '__previousTime', \
+                 '__startTime', '__x', '__y', '__th', '__pubRunData', '__isServoOn')
 
     def __init__(self):
         self.__cmdVel = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
@@ -24,6 +24,7 @@ class WallAround():
         self.__servoKd = rospy.get_param("/run_corridor/servo_kd", 0.01)
         self.__servoOffThreshold = rospy.get_param("/run_corridor/servo_off_threshold", 10)
         self.__wallGain = rospy.get_param("/run_corridor/wall_gain", 0.75)
+        self.__rightGain = rospy.get_param("/run_corridor/right_gain", 0.5)
         self.__wallThreshold = rospy.get_param("/run_corridor/wall_threshold", 20)
         self.__forwardThreshold = rospy.get_param("/run_corridor/forward_threshold", 30)
         self.__rightThreshold = rospy.get_param("/run_corridor/right_threshold", 40)
@@ -73,19 +74,16 @@ class WallAround():
             self.__isServoOn = False
         elif self.TooRight(ls):
             self.__linearSpeed -= self.__decel
-            self.__angularSpeed = math.pi * self.__wallGain
-            self.__isServoOn = False
-        elif self.TooLeft(ls):
-            self.__linearSpeed -= self.__decel
-            self.__angularSpeed = - math.pi * self.__wallGain
+            self.__angularSpeed = math.pi * self.__rightGain
             self.__isServoOn = False
         else:
-            if ls.sum_forward > self.__forwardThreshold:
+            if (ls.sum_forward > self.__forwardThreshold) or self.TooLeft(ls):
                 self.__linearSpeed -= self.__decel
                 if self.__linearSpeed < self.__minSpeed:
                     self.__linearSpeed = self.__minSpeed
             else:
                 self.__linearSpeed += self.__accel
+
             if ls.left_side < self.__servoOffThreshold:
                 self.__angularSpeed = 0.0
                 self.__isServoOn = False
