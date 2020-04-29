@@ -5,16 +5,21 @@ from std_srvs.srv import Trigger, TriggerResponse
 from pimouse_ros.msg import LightSensorValues
 from pimouse_control.msg import RunData
 
+
 class WallAround():
-    __slots__ = ('__cmdVel', '__accel', '__maxSpeed', '__minSpeed', '__servoTarget', '__servoKp', '__servoKd', \
-                 '__sensorOffThreshold', '__wallGain', '__rightGain', '__wallThreshold', '__linearSpeed', \
-                 '__sensorValues', '__linearSpeed', '__angularSpeed', '__previousError', '__previousTime', \
-                 '__startTime', '__x', '__y', '__th', '__pubRunData', '__isServoOn')
+
+    __slots__ = (
+        '__cmdVel', '__accel', '__decel', '__maxSpeed', '__minSpeed', '__servoTarget',
+        '__servoKp', '__servoKd',
+        '__servoOffThreshold', '__wallGain', '__rightGain', '__wallThreshold', '__linearSpeed',
+        '__sensorValues', '__linearSpeed', '__angularSpeed', '__previousError', '__previousTime',
+        '__startTime', '__x', '__y', '__th', '__pubRunData', '__isServoOn', '__forwardThreshold',
+        '__rightThreshold', '__leftThreshold')
 
     def __init__(self):
         self.__cmdVel = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
         self.__pubRunData = rospy.Publisher('/run_data', RunData, queue_size=1)
-        
+
         self.__accel = rospy.get_param("/run_corridor/acceleration", 0.01)
         self.__decel = rospy.get_param("/run_corridor/deceleration", 0.05)
         self.__maxSpeed = rospy.get_param("/run_corridor/max_speed", 0.3)
@@ -29,7 +34,7 @@ class WallAround():
         self.__forwardThreshold = rospy.get_param("/run_corridor/forward_threshold", 30)
         self.__rightThreshold = rospy.get_param("/run_corridor/right_threshold", 40)
         self.__leftThreshold = rospy.get_param("/run_corridor/left_threshold", 80)
-        
+
         self.__sensorValues = LightSensorValues()
         rospy.Subscriber('/lightsensors', LightSensorValues, self.Callback)
 
@@ -38,12 +43,12 @@ class WallAround():
 
     def WallFront(self, ls):
         return (ls.left_forward > self.__wallThreshold) or (ls.right_forward > self.__wallThreshold)
-    
+
     def TooRight(self, ls):
-        return (ls.right_side > self.__wallThreshold)
-    
+        return (ls.right_side > self.__rightThreshold)
+
     def TooLeft(self, ls):
-        return (ls.left_side > self.__wallThreshold)
+        return (ls.left_side > self.__leftThreshold)
 
     def Start(self):
         self.__startTime = rospy.get_time()
@@ -135,6 +140,7 @@ class WallAround():
             data.linear.x = linear
         data.angular.z = angular
         self.__cmdVel.publish(data)
+
 
 if __name__ == '__main__':
     rospy.init_node('wall_around')
