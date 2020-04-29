@@ -6,6 +6,31 @@ from pimouse_ros.msg import LightSensorValues
 from pimouse_control.msg import RunData
 
 
+class DistanceValues():
+
+    __slots__ = (
+        'right_forward', 'right_side', 'left_side', 'left_forward'
+    )
+
+    def __init__(self, sensorValues):
+        if sensorValues.right_forward > 0:
+            self.right_forward = math.sqrt(sensorValues.right_forward)
+        else:
+            self.right_forward = 0.0
+        if sensorValues.right_side > 0:
+            self.right_side = math.sqrt(sensorValues.right_side)
+        else:
+            self.right_side = 0.0
+        if sensorValues.left_side > 0:
+            self.left_side = math.sqrt(sensorValues.left_side)
+        else:
+            self.left_side = 0.0
+        if sensorValues.left_forward > 0:
+            self.left_forward = math.sqrt(sensorValues.left_forward)
+        else:
+            self.left_forward = 0.0
+
+
 class WallAround():
 
     __slots__ = (
@@ -41,14 +66,14 @@ class WallAround():
     def Callback(self, messages):
         self.__sensorValues = messages
 
-    def WallFront(self, ls):
-        return (ls.left_forward > self.__wallThreshold) or (ls.right_forward > self.__wallThreshold)
+    def WallFront(self, dv):
+        return (dv.left_forward > self.__wallThreshold) or (dv.right_forward > self.__wallThreshold)
 
-    def TooRight(self, ls):
-        return (ls.right_side > self.__rightThreshold)
+    def TooRight(self, dv):
+        return (dv.right_side > self.__rightThreshold)
 
-    def TooLeft(self, ls):
-        return (ls.left_side > self.__leftThreshold)
+    def TooLeft(self, dv):
+        return (dv.left_side > self.__leftThreshold)
 
     def Start(self):
         self.__startTime = rospy.get_time()
@@ -63,37 +88,37 @@ class WallAround():
 
     def Run(self):
         data = Twist()
-        ls = self.__sensorValues
+        dv = DistanceValues(self.__sensorValues)
         error = 0.0
         deltaError = 0.0
         nowTime = rospy.get_time()
         elapsedTime = nowTime - self.__startTime
         deltaTime = nowTime - self.__previousTime
 
-        if self.WallFront(ls):
+        if self.WallFront(dv):
             self.__linearSpeed = 0.0
-            if self.TooRight(ls):
+            if self.TooRight(dv):
                 self.__angularSpeed = math.pi * self.__wallGain
             else:
                 self.__angularSpeed = - math.pi * self.__wallGain
             self.__isServoOn = False
-        elif self.TooRight(ls):
+        elif self.TooRight(dv):
             self.__linearSpeed -= self.__decel
             self.__angularSpeed = math.pi * self.__rightGain
             self.__isServoOn = False
         else:
-            if (ls.sum_forward > self.__forwardThreshold) or self.TooLeft(ls):
+            if self.TooLeft(dv):
                 self.__linearSpeed -= self.__decel
                 if self.__linearSpeed < self.__minSpeed:
                     self.__linearSpeed = self.__minSpeed
             else:
                 self.__linearSpeed += self.__accel
 
-            if ls.left_side < self.__servoOffThreshold:
+            if dv.left_side < self.__servoOffThreshold:
                 self.__angularSpeed = 0.0
                 self.__isServoOn = False
             else:
-                error = self.__servoTarget - ls.left_side
+                error = self.__servoTarget - dv.left_side
                 self.__angularSpeed = error * self.__servoKp * math.pi / 180.0
                 if self.__isServoOn:
                     deltaError = error - self.__previousError
@@ -124,17 +149,17 @@ class WallAround():
         runData.angular = self.__angularSpeed
         runData.error = error
         runData.deltaError = deltaError
-        runData.leftSide = ls.left_side
-        runData.leftForward = ls.left_forward
-        runData.rightForward = ls.right_forward
-        runData.rightSide = ls.right_side
+        runData.leftSide = dv.left_side
+        runData.leftForward = dv.left_forward
+        runData.rightForward = dv.right_forward
+        runData.rightSide = dv.right_side
 
         self.__pubRunData.publish(runData)
 
     def SetVelocity(self, linear, angular):
         data = Twist()
-        ls = self.__sensorValues
-        if self.WallFront(ls) and (linear > 0.0):
+        dv = DistanceValues(self.__sensorValues)
+        if self.WallFront(dv) and (linear > 0.0):
             data.linear.x = 0.0
         else:
             data.linear.x = linear
