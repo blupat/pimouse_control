@@ -53,7 +53,7 @@ class WallAround():
     __slots__ = (
         '_cmdVel', '_accel', '_decel', '_maxSpeed', '_minSpeed', '_servoTarget',
         '_servoKp', '_servoKd', '_leftSideBuffer', '_rightSideBuffer', '_bufferIndex',
-        '_servoOffThreshold', '_wallGain', '_wallThreshold',
+        '_servoOffThreshold', '_wallGain', '_wallThreshold', '_nearWallThreshold',
         '_distanceValues', '_leftAverage', '_rightAverage',
         '_linearSpeed', '_angularSpeed', '_previousError', '_previousTime',
         '_startTime', '_x', '_y', '_th', '_pubRunData', '_isServoOn', '_isTurnRight',
@@ -64,17 +64,18 @@ class WallAround():
         self._pubRunData = rospy.Publisher('/run_data', RunData, queue_size=1)
 
         self._accel = rospy.get_param("/run_corridor/acceleration", 0.01)
-        self._decel = rospy.get_param("/run_corridor/deceleration", 0.05)
+        self._decel = rospy.get_param("/run_corridor/deceleration", 0.02)
         self._maxSpeed = rospy.get_param("/run_corridor/max_speed", 0.3)
-        self._minSpeed = rospy.get_param("/run_corridor/min_speed", 0.0)
-        self._servoTarget = rospy.get_param("/run_corridor/servo_target", 12.0)
-        self._servoKp = rospy.get_param("/run_corridor/servo_kp", 10.0)
-        self._servoKd = rospy.get_param("/run_corridor/servo_kd", 0.2)
-        self._servoOffThreshold = rospy.get_param("/run_corridor/servo_off_threshold", 3.0)
+        self._minSpeed = rospy.get_param("/run_corridor/min_speed", 0.1)
+        self._servoTarget = rospy.get_param("/run_corridor/servo_target", 14.0)
+        self._servoKp = rospy.get_param("/run_corridor/servo_kp", 8.0)
+        self._servoKd = rospy.get_param("/run_corridor/servo_kd", 0.16)
+        self._servoOffThreshold = rospy.get_param("/run_corridor/servo_off_threshold", 4.0)
         self._wallGain = rospy.get_param("/run_corridor/wall_gain", 1.0)
-        self._wallThreshold = rospy.get_param("/run_corridor/wall_threshold", 16.0)
-        self._rightThreshold = rospy.get_param("/run_corridor/right_threshold", 20.0)
-        self._leftThreshold = rospy.get_param("/run_corridor/left_threshold", 20.0)
+        self._wallThreshold = rospy.get_param("/run_corridor/wall_threshold", 15.0)
+        self._nearWallThreshold = rospy.get_param("/run_corridor/near_wall_threshold", 10.0)
+        self._rightThreshold = rospy.get_param("/run_corridor/right_threshold", 21.0)
+        self._leftThreshold = rospy.get_param("/run_corridor/left_threshold", 21.0)
 
         self._distanceValues = DistanceValues(LightSensorValues())
         self._leftSideBuffer = [0.0, 0.0, 0.0]
@@ -98,6 +99,9 @@ class WallAround():
 
     def WallFront(self, dv):
         return (dv.leftForward > self._wallThreshold) or (dv.rightForward > self._wallThreshold)
+
+    def NearWall(self, dv):
+        return (dv.leftForward > self._nearWallThreshold) or (dv.rightForward > self._nearWallThreshold)
 
     def TooRight(self, dv):
         return (dv.rightSide > self._rightThreshold)
@@ -141,12 +145,14 @@ class WallAround():
             self._isServoOn = False
             isWallFront = True
         else:
-            if self.TooLeft(dv) or self.TooRight(dv):
+            if self.TooLeft(dv) or self.TooRight(dv) or self.NearWall(dv):
                 self._linearSpeed -= self._decel
-                if self._linearSpeed < self._minSpeed:
-                    self._linearSpeed = self._minSpeed
             else:
                 self._linearSpeed += self._accel
+            if self._linearSpeed < self._minSpeed:
+                self._linearSpeed = self._minSpeed
+            elif self._linearSpeed > self._maxSpeed:
+                self._linearSpeed = self._maxSpeed
 
             if ((dv.leftSide < self._servoOffThreshold)
                     and (dv.rightSide < self._servoOffThreshold)):
@@ -169,11 +175,6 @@ class WallAround():
                     self._angularSpeed += deltaError / deltaTime * self._servoKd * math.pi / 180.0
                 self._isServoOn = True
                 self._isTurnRight = False
-
-        if self._linearSpeed < 0.0:
-            self._linearSpeed = 0.0
-        elif self._linearSpeed > self._maxSpeed:
-            self._linearSpeed = self._maxSpeed
 
         data = Twist()
         data.linear.x = self._linearSpeed

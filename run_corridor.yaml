@@ -1,13 +1,14 @@
 run_corridor:
   acceleration: 0.01
-  deceleration: 0.05
+  deceleration: 0.02
   max_speed: 0.3
-  min_speed: 0.05
-  servo_target: 13.0
+  min_speed: 0.1
+  servo_target: 14.0
   servo_kp: 8.0
   servo_kd: 0.16
-  servo_off_threshold: 3.0
+  servo_off_threshold: 4.0
   wall_gain: 1.0
   wall_threshold: 15.0
-  right_threshold: 20.0
-  left_threshold: 20.0
+  near_wall_threshold: 10.0
+  right_threshold: 21.0
+  left_threshold: 21.0
