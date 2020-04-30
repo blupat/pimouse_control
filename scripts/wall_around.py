@@ -35,10 +35,10 @@ class WallAround():
 
     __slots__ = (
         '__cmdVel', '__accel', '__decel', '__maxSpeed', '__minSpeed', '__servoTarget',
-        '__servoKp', '__servoKd',
-        '__servoOffThreshold', '__wallGain', '__rightGain', '__wallThreshold', '__linearSpeed',
+        '__servoKp', '__servoKd', '__leftSideBuffer', '__rightSideBuffer', '__bufferIndex',
+        '__servoOffThreshold', '__wallGain', '__wallThreshold', '__linearSpeed',
         '__sensorValues', '__linearSpeed', '__angularSpeed', '__previousError', '__previousTime',
-        '__startTime', '__x', '__y', '__th', '__pubRunData', '__isServoOn', '__forwardThreshold',
+        '__startTime', '__x', '__y', '__th', '__pubRunData', '__isServoOn', '__isTurnRight',
         '__rightThreshold', '__leftThreshold')
 
     def __init__(self):
@@ -49,16 +49,14 @@ class WallAround():
         self.__decel = rospy.get_param("/run_corridor/deceleration", 0.05)
         self.__maxSpeed = rospy.get_param("/run_corridor/max_speed", 0.3)
         self.__minSpeed = rospy.get_param("/run_corridor/min_speed", 0.0)
-        self.__servoTarget = rospy.get_param("/run_corridor/servo_target", 40)
-        self.__servoKp = rospy.get_param("/run_corridor/servo_kp", 1.0)
-        self.__servoKd = rospy.get_param("/run_corridor/servo_kd", 0.01)
-        self.__servoOffThreshold = rospy.get_param("/run_corridor/servo_off_threshold", 10)
-        self.__wallGain = rospy.get_param("/run_corridor/wall_gain", 0.75)
-        self.__rightGain = rospy.get_param("/run_corridor/right_gain", 0.5)
-        self.__wallThreshold = rospy.get_param("/run_corridor/wall_threshold", 20)
-        self.__forwardThreshold = rospy.get_param("/run_corridor/forward_threshold", 30)
-        self.__rightThreshold = rospy.get_param("/run_corridor/right_threshold", 40)
-        self.__leftThreshold = rospy.get_param("/run_corridor/left_threshold", 80)
+        self.__servoTarget = rospy.get_param("/run_corridor/servo_target", 12.0)
+        self.__servoKp = rospy.get_param("/run_corridor/servo_kp", 10.0)
+        self.__servoKd = rospy.get_param("/run_corridor/servo_kd", 0.2)
+        self.__servoOffThreshold = rospy.get_param("/run_corridor/servo_off_threshold", 3.0)
+        self.__wallGain = rospy.get_param("/run_corridor/wall_gain", 1.0)
+        self.__wallThreshold = rospy.get_param("/run_corridor/wall_threshold", 16.0)
+        self.__rightThreshold = rospy.get_param("/run_corridor/right_threshold", 20.0)
+        self.__leftThreshold = rospy.get_param("/run_corridor/left_threshold", 20.0)
 
         self.__sensorValues = LightSensorValues()
         rospy.Subscriber('/lightsensors', LightSensorValues, self.Callback)
@@ -85,51 +83,76 @@ class WallAround():
         self.__y = 0.0
         self.__th = 0.0
         self.__isServoOn = False
+        self.__isTurnRight = False
+        self.__leftSideBuffer = [0.0, 0.0, 0.0]
+        self.__rightSideBuffer = [0.0, 0.0, 0.0]
+        self.__bufferIndex = 0
 
     def Run(self):
-        data = Twist()
         dv = DistanceValues(self.__sensorValues)
+        self.__leftSideBuffer[self.__bufferIndex] = dv.left_side
+        self.__rightSideBuffer[self.__bufferIndex] = dv.right_side
+        self.__bufferIndex += 1
+        if self.__bufferIndex >= 3:
+            self.__bufferIndex = 0
+
         error = 0.0
         deltaError = 0.0
         nowTime = rospy.get_time()
         elapsedTime = nowTime - self.__startTime
         deltaTime = nowTime - self.__previousTime
+        leftAverage = sum(self.__leftSideBuffer) / len(self.__leftSideBuffer)
+        rightAverage = sum(self.__rightSideBuffer) / len(self.__rightSideBuffer)
+        isWallFront = False
 
         if self.WallFront(dv):
             self.__linearSpeed = 0.0
-            if self.TooRight(dv):
-                self.__angularSpeed = math.pi * self.__wallGain
-            else:
+            if self.__isServoOn:
+                if rightAverage > leftAverage:
+                    self.__isTurnRight = False
+                else:
+                    self.__isTurnRight = True
+            if self.__isTurnRight:
                 self.__angularSpeed = - math.pi * self.__wallGain
+            else:
+                self.__angularSpeed = math.pi * self.__wallGain
             self.__isServoOn = False
-        elif self.TooRight(dv):
-            self.__linearSpeed -= self.__decel
-            self.__angularSpeed = math.pi * self.__rightGain
-            self.__isServoOn = False
+            isWallFront = True
         else:
-            if self.TooLeft(dv):
+            if self.TooLeft(dv) or self.TooRight(dv):
                 self.__linearSpeed -= self.__decel
                 if self.__linearSpeed < self.__minSpeed:
                     self.__linearSpeed = self.__minSpeed
             else:
                 self.__linearSpeed += self.__accel
 
-            if dv.left_side < self.__servoOffThreshold:
+            if (dv.left_side < self.__servoOffThreshold) and (dv.right_side < self.__servoOffThreshold):
                 self.__angularSpeed = 0.0
                 self.__isServoOn = False
-            else:
-                error = self.__servoTarget - dv.left_side
+                self.__isTurnRight = False
+            elif rightAverage > leftAverage:
+                error = dv.right_side - self.__servoTarget
                 self.__angularSpeed = error * self.__servoKp * math.pi / 180.0
-                if self.__isServoOn:
+                if self.__isServoOn and self.__isTurnRight:
                     deltaError = error - self.__previousError
                     self.__angularSpeed += deltaError / deltaTime * self.__servoKd * math.pi / 180.0
                 self.__isServoOn = True
+                self.__isTurnRight = True
+            else:
+                error = self.__servoTarget - dv.left_side
+                self.__angularSpeed = error * self.__servoKp * math.pi / 180.0
+                if self.__isServoOn and (not self.__isTurnRight):
+                    deltaError = error - self.__previousError
+                    self.__angularSpeed += deltaError / deltaTime * self.__servoKd * math.pi / 180.0
+                self.__isServoOn = True
+                self.__isTurnRight = False
 
         if self.__linearSpeed < 0.0:
             self.__linearSpeed = 0.0
         elif self.__linearSpeed > self.__maxSpeed:
             self.__linearSpeed = self.__maxSpeed
 
+        data = Twist()
         data.linear.x = self.__linearSpeed
         data.angular.z = self.__angularSpeed
         self.__cmdVel.publish(data)
@@ -153,6 +176,9 @@ class WallAround():
         runData.leftForward = dv.left_forward
         runData.rightForward = dv.right_forward
         runData.rightSide = dv.right_side
+        runData.isServoOn = self.__isServoOn
+        runData.isTurnRight = self.__isTurnRight
+        runData.isWallFront = isWallFront
 
         self.__pubRunData.publish(runData)
 

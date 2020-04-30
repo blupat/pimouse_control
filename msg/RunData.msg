@@ -10,3 +10,6 @@ float64 leftSide
 float64 leftForward
 float64 rightForward
 float64 rightSide
+bool isServoOn
+bool isTurnRight
+bool isWallFront
