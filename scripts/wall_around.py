@@ -20,26 +20,32 @@ from pimouse_control.msg import RunData
 class DistanceValues():
 
     __slots__ = (
-        'right_forward', 'right_side', 'left_side', 'left_forward'
+        'rightForward', 'rightSide', 'leftSide', 'leftForward', 'leftAverage', 'rightAverage'
     )
 
     def __init__(self, sensorValues):
         if sensorValues.right_forward > 0:
-            self.right_forward = math.sqrt(sensorValues.right_forward)
+            self.rightForward = math.sqrt(sensorValues.right_forward)
         else:
-            self.right_forward = 0.0
+            self.rightForward = 0.0
         if sensorValues.right_side > 0:
-            self.right_side = math.sqrt(sensorValues.right_side)
+            self.rightSide = math.sqrt(sensorValues.right_side)
         else:
-            self.right_side = 0.0
+            self.rightSide = 0.0
         if sensorValues.left_side > 0:
-            self.left_side = math.sqrt(sensorValues.left_side)
+            self.leftSide = math.sqrt(sensorValues.left_side)
         else:
-            self.left_side = 0.0
+            self.leftSide = 0.0
         if sensorValues.left_forward > 0:
-            self.left_forward = math.sqrt(sensorValues.left_forward)
+            self.leftForward = math.sqrt(sensorValues.left_forward)
         else:
-            self.left_forward = 0.0
+            self.leftForward = 0.0
+        self.leftAverage = 0.0
+        self.rightAverage = 0.0
+
+    def SetAverage(self, leftAverage, rightAverage):
+        self.leftAverage = leftAverage
+        self.rightAverage = rightAverage
 
 
 class WallAround():
@@ -71,26 +77,33 @@ class WallAround():
         self._leftThreshold = rospy.get_param("/run_corridor/left_threshold", 20.0)
 
         self._distanceValues = DistanceValues(LightSensorValues())
+        self._leftSideBuffer = [0.0, 0.0, 0.0]
+        self._rightSideBuffer = [0.0, 0.0, 0.0]
+        self._bufferIndex = 0
+        self._leftAverage = 0.0
+        self._rightAverage = 0.0
         rospy.Subscriber('/lightsensors', LightSensorValues, self.Callback)
 
     def Callback(self, messages):
-        self._distanceValues = DistanceValues(messages)
-        self._leftSideBuffer[self._bufferIndex] = self._distanceValues.left_side
-        self._rightSideBuffer[self._bufferIndex] = self._distanceValues.right_side
+        dv = DistanceValues(messages)
+        self._leftSideBuffer[self._bufferIndex] = dv.leftSide
+        self._rightSideBuffer[self._bufferIndex] = dv.rightSide
         self._bufferIndex += 1
         if self._bufferIndex >= 3:
             self._bufferIndex = 0
-        self._leftAverage = sum(self._leftSideBuffer) / len(self._leftSideBuffer)
-        self._rightAverage = sum(self._rightSideBuffer) / len(self._rightSideBuffer)
+        leftAverage = sum(self._leftSideBuffer) / len(self._leftSideBuffer)
+        rightAverage = sum(self._rightSideBuffer) / len(self._rightSideBuffer)
+        dv.SetAverage(leftAverage, rightAverage)
+        self._distanceValues = dv
 
     def WallFront(self, dv):
-        return (dv.left_forward > self._wallThreshold) or (dv.right_forward > self._wallThreshold)
+        return (dv.leftForward > self._wallThreshold) or (dv.rightForward > self._wallThreshold)
 
     def TooRight(self, dv):
-        return (dv.right_side > self._rightThreshold)
+        return (dv.rightSide > self._rightThreshold)
 
     def TooLeft(self, dv):
-        return (dv.left_side > self._leftThreshold)
+        return (dv.leftSide > self._leftThreshold)
 
     def Start(self):
         self._startTime = rospy.get_time()
@@ -103,14 +116,9 @@ class WallAround():
         self._th = 0.0
         self._isServoOn = False
         self._isTurnRight = False
-        self._leftSideBuffer = [0.0, 0.0, 0.0]
-        self._rightSideBuffer = [0.0, 0.0, 0.0]
-        self._bufferIndex = 0
 
     def Run(self):
         dv = self._distanceValues
-        leftAverage = self._leftAverage
-        rightAverage = self._rightAverage
 
         error = 0.0
         deltaError = 0.0
@@ -122,7 +130,7 @@ class WallAround():
         if self.WallFront(dv):
             self._linearSpeed = 0.0
             if self._isServoOn:
-                if rightAverage > leftAverage:
+                if dv.rightAverage > dv.leftAverage:
                     self._isTurnRight = False
                 else:
                     self._isTurnRight = True
@@ -140,13 +148,13 @@ class WallAround():
             else:
                 self._linearSpeed += self._accel
 
-            if ((dv.left_side < self._servoOffThreshold)
-                    and (dv.right_side < self._servoOffThreshold)):
+            if ((dv.leftSide < self._servoOffThreshold)
+                    and (dv.rightSide < self._servoOffThreshold)):
                 self._angularSpeed = 0.0
                 self._isServoOn = False
                 self._isTurnRight = False
-            elif rightAverage > leftAverage:
-                error = dv.right_side - self._servoTarget
+            elif dv.rightAverage > dv.leftAverage:
+                error = dv.rightSide - self._servoTarget
                 self._angularSpeed = error * self._servoKp * math.pi / 180.0
                 if self._isServoOn and self._isTurnRight:
                     deltaError = error - self._previousError
@@ -154,7 +162,7 @@ class WallAround():
                 self._isServoOn = True
                 self._isTurnRight = True
             else:
-                error = self._servoTarget - dv.left_side
+                error = self._servoTarget - dv.leftSide
                 self._angularSpeed = error * self._servoKp * math.pi / 180.0
                 if self._isServoOn and (not self._isTurnRight):
                     deltaError = error - self._previousError
@@ -187,10 +195,10 @@ class WallAround():
         runData.angular = self._angularSpeed
         runData.error = error
         runData.deltaError = deltaError
-        runData.leftSide = dv.left_side
-        runData.leftForward = dv.left_forward
-        runData.rightForward = dv.right_forward
-        runData.rightSide = dv.right_side
+        runData.leftSide = dv.leftSide
+        runData.leftForward = dv.leftForward
+        runData.rightForward = dv.rightForward
+        runData.rightSide = dv.rightSide
         runData.isServoOn = self._isServoOn
         runData.isTurnRight = self._isTurnRight
         runData.isWallFront = isWallFront
@@ -199,7 +207,7 @@ class WallAround():
 
     def SetVelocity(self, linear, angular):
         data = Twist()
-        dv = DistanceValues(self._sensorValues)
+        dv = self._distanceValues
         if self.WallFront(dv) and (linear > 0.0):
             data.linear.x = 0.0
         else:
