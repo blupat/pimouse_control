@@ -4,57 +4,60 @@ from __future__ import print_function
 
 import rospy
 from geometry_msgs.msg import Twist
-from wall_around import *
-from face_to_face import *
-from face_detection import *
+from wall_around import WallAround
+from face_to_face import FaceToFace
+from face_detection import FaceDetection
 from pimouse_control.srv import PiMouseCmd, PiMouseCmdRequest, PiMouseCmdResponse
 
+
 class PiMouseControl(object):
-    __slots__ = ('__srvCmd', '__srvClientOn', '__srvClientOff', '__wallAround', \
-                 '__faceToFace', '__faceDetection', '__isOn', '__isRun', \
-                 '__on', '__run', '__face', '__forward', '__rotation')
+
+    __slots__ = (
+        '_srvCmd', '_srvClientOn', '_srvClientOff', '_wallAround',
+        '_faceToFace', '_faceDetection', '_isOn', '_isRun',
+        '_on', '_run', '_face', '_forward', '_rotation')
 
     def __init__(self):
-        self.__isOn = False
-        self.__isRun = False
-        self.__on = False
-        self.__run = False
-        self.__face = False
-        self.__forward = 0.0
-        self.__rotation = 0.0
-        self.__srvCmd = rospy.Service('pimouse_cmd', PiMouseCmd, self.CommandCallback)
-        self.__srvClientOn = rospy.ServiceProxy('motor_on', Trigger)
-        self.__srvClientOff = rospy.ServiceProxy('motor_off', Trigger)
-        rospy.on_shutdown(self.__srvClientOff.call)
-        self.__wallAround = WallAround()
-        self.__faceToFace = FaceToFace()
-        self.__faceDetection = FaceDetection()
+        self._isOn = False
+        self._isRun = False
+        self._on = False
+        self._run = False
+        self._face = False
+        self._forward = 0.0
+        self._rotation = 0.0
+        self._srvCmd = rospy.Service('pimouse_cmd', PiMouseCmd, self.CommandCallback)
+        self._srvClientOn = rospy.ServiceProxy('motor_on', Trigger)
+        self._srvClientOff = rospy.ServiceProxy('motor_off', Trigger)
+        rospy.on_shutdown(self._srvClientOff.call)
+        self._wallAround = WallAround()
+        self._faceToFace = FaceToFace()
+        self._faceDetection = FaceDetection()
 
     def CommandCallback(self, req):
         if req.on:
-            self.__on = True
+            self._on = True
             if req.run:
-                self.__run = True
-                self.__face = False
-                self.__forward = 0.0
-                self.__rotation = 0.0
+                self._run = True
+                self._face = False
+                self._forward = 0.0
+                self._rotation = 0.0
             elif req.face:
-                self.__run = False
-                self.__face = True
-                self.__forward = 0.0
-                self.__rotation = 0.0
+                self._run = False
+                self._face = True
+                self._forward = 0.0
+                self._rotation = 0.0
             else:
-                self.__run = False
-                self.__face = False
-                self.__forward = req.forward
-                self.__rotation = req.rotation
+                self._run = False
+                self._face = False
+                self._forward = req.forward
+                self._rotation = req.rotation
         else:
-            self.__on = False
-            self.__run = False
-            self.__face = False
-            self.__forward = 0.0
-            self.__rotation = 0.0
-            self.__srvClientOff.call()
+            self._on = False
+            self._run = False
+            self._face = False
+            self._forward = 0.0
+            self._rotation = 0.0
+            self._srvClientOff.call()
         res = PiMouseCmdResponse()
         res.isOk = True
         return res
@@ -63,32 +66,33 @@ class PiMouseControl(object):
         rate = rospy.Rate(15)
         while not rospy.is_shutdown():
             try:
-                xPosRate = self.__faceDetection.Control()
-                if self.__on:
-                    if not self.__isOn:
-                        self.__srvClientOn.call()
-                        self.__isOn = True
-                    if self.__run:
-                        if not self.__isRun:
-                            self.__wallAround.Start()
-                            self.__isRun = True
+                xPosRate = self._faceDetection.Control()
+                if self._on:
+                    if not self._isOn:
+                        self._srvClientOn.call()
+                        self._isOn = True
+                    if self._run:
+                        if not self._isRun:
+                            self._wallAround.Start()
+                            self._isRun = True
                         else:
-                            self.__wallAround.Run()
-                    elif self.__face:
-                        self.__faceToFace.Rotate(xPosRate)
-                        self.__isRun = False
+                            self._wallAround.Run()
+                    elif self._face:
+                        self._faceToFace.Rotate(xPosRate)
+                        self._isRun = False
                     else:
-                        self.__wallAround.SetVelocity(self.__forward, self.__rotation)
-                        self.__isRun = False
+                        self._wallAround.SetVelocity(self._forward, self._rotation)
+                        self._isRun = False
                 else:
-                    if self.__isOn:
-                        self.__wallAround.SetVelocity(0.0, 0.0)
-                        self.__srvClientOff.call()
-                        self.__isOn = False
-                        self.__isRun = False
+                    if self._isOn:
+                        self._wallAround.SetVelocity(0.0, 0.0)
+                        self._srvClientOff.call()
+                        self._isOn = False
+                        self._isRun = False
             except Exception as e:
                 print(e)
             rate.sleep()
+
 
 if __name__ == '__main__':
     rospy.init_node('pimouse_control_node')
