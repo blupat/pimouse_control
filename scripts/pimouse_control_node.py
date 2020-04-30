@@ -4,6 +4,7 @@ from __future__ import print_function
 
 import rospy
 from geometry_msgs.msg import Twist
+from std_srvs.srv import Trigger
 from wall_around import WallAround
 from face_to_face import FaceToFace
 from face_detection import FaceDetection
