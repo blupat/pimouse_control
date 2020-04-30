@@ -46,15 +46,18 @@ class FaceDetection():
 
         self._pubFace.publish(self._cvBridge.cv2_to_imgmsg(org, "bgr8"))
 
-    def DetectFace(self):
+    def DetectFace(self, isDetectionEnabled):
         if self._imageOrg is None:
             return None, None
 
         org = self._imageOrg
 
-        gimg = cv2.cvtColor(org, cv2.COLOR_BGR2GRAY)
-        face = self._cascade.detectMultiScale(
-            gimg, self._scaleFactor, self._minNeighbors, cv2.CASCADE_FIND_BIGGEST_OBJECT)
+        if isDetectionEnabled:
+            gimg = cv2.cvtColor(org, cv2.COLOR_BGR2GRAY)
+            face = self._cascade.detectMultiScale(
+                gimg, self._scaleFactor, self._minNeighbors, cv2.CASCADE_FIND_BIGGEST_OBJECT)
+        else:
+            face = []
 
         if len(face) == 0:
             self.Monitor(None, org)
@@ -65,8 +68,8 @@ class FaceDetection():
 
         return r, org
 
-    def Control(self):
-        r, image = self.DetectFace()
+    def Control(self, isDetectionEnabled):
+        r, image = self.DetectFace(isDetectionEnabled)
         if r is None:
             return 0.0
 

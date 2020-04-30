@@ -75,7 +75,7 @@ class PiMouseControl(object):
         rate = rospy.Rate(15)
         while not rospy.is_shutdown():
             try:
-                xPosRate = self._faceDetection.Control()
+                xPosRate = self._faceDetection.Control(self._face)
                 if self._on:
                     if not self._isOn:
                         self._srvClientOn.call()

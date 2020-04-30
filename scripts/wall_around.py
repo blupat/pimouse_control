@@ -48,7 +48,8 @@ class WallAround():
         '_cmdVel', '_accel', '_decel', '_maxSpeed', '_minSpeed', '_servoTarget',
         '_servoKp', '_servoKd', '_leftSideBuffer', '_rightSideBuffer', '_bufferIndex',
         '_servoOffThreshold', '_wallGain', '_wallThreshold',
-        '_sensorValues', '_linearSpeed', '_angularSpeed', '_previousError', '_previousTime',
+        '_distanceValues', '_leftAverage', '_rightAverage',
+        '_linearSpeed', '_angularSpeed', '_previousError', '_previousTime',
         '_startTime', '_x', '_y', '_th', '_pubRunData', '_isServoOn', '_isTurnRight',
         '_rightThreshold', '_leftThreshold')
 
@@ -69,11 +70,18 @@ class WallAround():
         self._rightThreshold = rospy.get_param("/run_corridor/right_threshold", 20.0)
         self._leftThreshold = rospy.get_param("/run_corridor/left_threshold", 20.0)
 
-        self._sensorValues = LightSensorValues()
+        self._distanceValues = DistanceValues(LightSensorValues())
         rospy.Subscriber('/lightsensors', LightSensorValues, self.Callback)
 
     def Callback(self, messages):
-        self._sensorValues = messages
+        self._distanceValues = DistanceValues(messages)
+        self._leftSideBuffer[self._bufferIndex] = self._distanceValues.left_side
+        self._rightSideBuffer[self._bufferIndex] = self._distanceValues.right_side
+        self._bufferIndex += 1
+        if self._bufferIndex >= 3:
+            self._bufferIndex = 0
+        self._leftAverage = sum(self._leftSideBuffer) / len(self._leftSideBuffer)
+        self._rightAverage = sum(self._rightSideBuffer) / len(self._rightSideBuffer)
 
     def WallFront(self, dv):
         return (dv.left_forward > self._wallThreshold) or (dv.right_forward > self._wallThreshold)
@@ -100,20 +108,15 @@ class WallAround():
         self._bufferIndex = 0
 
     def Run(self):
-        dv = DistanceValues(self._sensorValues)
-        self._leftSideBuffer[self._bufferIndex] = dv.left_side
-        self._rightSideBuffer[self._bufferIndex] = dv.right_side
-        self._bufferIndex += 1
-        if self._bufferIndex >= 3:
-            self._bufferIndex = 0
+        dv = self._distanceValues
+        leftAverage = self._leftAverage
+        rightAverage = self._rightAverage
 
         error = 0.0
         deltaError = 0.0
         nowTime = rospy.get_time()
         elapsedTime = nowTime - self._startTime
         deltaTime = nowTime - self._previousTime
-        leftAverage = sum(self._leftSideBuffer) / len(self._leftSideBuffer)
-        rightAverage = sum(self._rightSideBuffer) / len(self._rightSideBuffer)
         isWallFront = False
 
         if self.WallFront(dv):
