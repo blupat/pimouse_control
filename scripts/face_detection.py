@@ -1,4 +1,12 @@
 #!/usr/bin/env python
+#
+# =======================================================================
+#   @file   face_detection.py
+#   @brief
+#   @note
+#
+#   Copyright (C) 2020 Yasushi Oshima (oosmyss@gmail.com)
+# =======================================================================
 
 import rospy
 import cv2

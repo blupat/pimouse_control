@@ -1,4 +1,12 @@
 #!/usr/bin/env python
+#
+# =======================================================================
+#   @file   pimouse_control_node.py
+#   @brief
+#   @note
+#
+#   Copyright (C) 2020 Yasushi Oshima (oosmyss@gmail.com)
+# =======================================================================
 
 from __future__ import print_function
 
