@@ -90,5 +90,5 @@ if __name__ == "__main__":
     rate = rospy.Rate(15.0)
     ftf = FaceToFace()
     while not rospy.is_shutdown():
-        ftf.Rotate(fd.Control())
+        ftf.Rotate(fd.Control(True))
         rate.sleep()
